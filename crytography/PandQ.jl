@@ -1,7 +1,6 @@
 using Test
 
 function dixon_factor(n::Union{Int8, Int16, Int32, Int64, BigInt}, debug::Bool = false)
-#    base::Array{Int,1} = [2, 3, 5, 7, 11, 13, 17, 19, 23]
     base::Array{Int,1} = [2, 3, 5, 7]
     start::BigInt = trunc(BigInt, (n)^(1/2))
     pairs = Array{Array{BigInt,1}, 1}()
@@ -66,10 +65,7 @@ function parse_file(file::String)
     end
 end
 
-function long_to_bytes(m::BigInt)
-    return out
-end
-
+#### julia forum
 function to_bytes(n::Integer; bigendian=true, len=sizeof(n))
     bytes = Array{UInt8}(undef, len)
     for byte in (bigendian ? (1:len) : reverse(1:len))
@@ -77,6 +73,44 @@ function to_bytes(n::Integer; bigendian=true, len=sizeof(n))
         n >>= 8
     end
     return bytes
+end
+
+##### from BitsConvert.jl
+function bigint2bytes(n::BigInt)
+    nbytes_z = n.size * sizeof(Sys.WORD_SIZE)
+    uint8_ptr = convert(Ptr{UInt8}, n.d)
+    nbytes = 1
+    if ENDIAN_BOM == 0x04030201
+        for i in nbytes_z:-1:1
+            if unsafe_load(uint8_ptr, i) != 0x00
+                nbytes = i
+                break
+            end
+        end
+        result = Array{UInt8}(undef, nbytes)
+        for i in 1:nbytes
+            @inbounds result[nbytes + 1 - i] = unsafe_load(uint8_ptr, i)
+        end
+    else
+        for i in 1:nbytes_z
+            if unsafe_load(uint8_ptr, i) != 0x00
+                nbytes = i
+                break
+            end
+        end
+        result = Array{UInt8}(undef, nbytes)
+        for i in 1:nbytes
+            @inbounds result[i] = unsafe_load(uint8_ptr,i)
+        end
+    end
+    return result
+end
+
+###### my implementation
+function int2bytes(n::Integer)
+    # reverse endian
+    # pkcs#1 => 256
+    return binary = reverse!(digits(UInt8, n, base=256))
 end
 
 function decodeRSA(file::String, debug::Bool = false)
@@ -90,33 +124,19 @@ function decodeRSA(file::String, debug::Bool = false)
         @test dixon_factor(23449) == BigInt[131, 179]
         p::BigInt = 475693130177488446807040098678772442581573
         q::BigInt = 1617549722683965197900599011412144490161
-        d::BigInt = 126303212068990139693004510131620913748825
+        d::BigInt = 582402748221564772374696843202153883711652351188297188998024166320268538694734273
+        @test calculate_private_key(p, q, e) == d
         m::BigInt = powermod(c,d,n)
         println("d: ", d)
         println("m: ", m)
-#        binary = digits(UInt8, m)
-        binary = digits(m, base = 2)
-        println(binary)
-#        function binary2ascii(binary)
-#            out = ""
-#            result = ""
-#            for i in binary
-#                out *= "$i"
-#                if length(out) == 4
-#                    result += parse(Int64, out, 2)
-#                    out = ""
-#                end
-#            return result
-#            end
-#        end
-#        ascii = binary2ascii(binary)
-#        println(ascii)
-#        println(String(ascii))
-#        println(map(x -> Char(x), binary))
-        out = ""
-#        map(x -> out*="$x", binary)
-        println(to_bytes(m))
-        println(String(to_bytes(m)))
+
+        binary = int2bytes(m)
+        binary2 = to_bytes(m, len=256, bigendian=false)
+        binary3 = bigint2bytes(m)
+
+        println(String(binary))
+        println(String(binary2))
+        println(String(binary3))
     else
         out = dixon_factor(n)
         d = calculate_private_key(out[0], out[1], e)
@@ -124,6 +144,8 @@ function decodeRSA(file::String, debug::Bool = false)
         println(out)
         println("d: ", d)
         println("m: ", m)
+        binary = int2bytes(m)
+        println(String(binary))
     end
 end
 
