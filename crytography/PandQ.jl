@@ -108,8 +108,8 @@ end
 
 ###### my implementation
 function int2bytes(n::Integer)
-    # reverse endian
-    # pkcs#1 => 256
+    # reverse endian to BigEndian
+    # pkcs#1 => 2048/8 = 256 bytes
     return binary = reverse!(digits(UInt8, n, base=256))
 end
 
@@ -139,7 +139,7 @@ function decodeRSA(file::String, debug::Bool = false)
         println(String(binary3))
     else
         out = dixon_factor(n)
-        d = calculate_private_key(out[0], out[1], e)
+        d = calculate_private_key(out[1], out[2], e)
         m = powermod(c,d,n)
         println(out)
         println("d: ", d)
